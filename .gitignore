@@ -1,0 +1,8 @@
+# Ignore everything
+*
+
+# But track bot.py
+!bot.py
+
+# Also track .gitignore itself
+!.gitignore
