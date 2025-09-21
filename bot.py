@@ -10,11 +10,9 @@ LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID") or 0)
 IGNORE_ROLE_IDS = {int(x) for x in (os.getenv("IGNORE_ROLE_IDS") or "").split(",") if x.strip()}
 AUTO_BAN_AFTER = int(os.getenv("AUTO_BAN_AFTER") or 0)
 
-# Regex for bad file names / URLs:
 # Matches: 1.png, 2.jpg, image.png, image0.jpg, image123.gif, img12.webp
 BANNED_REGEX = re.compile(r'(?:^|/)(?:\d+|image\d*|img\d*)\.(?:png|jpe?g|webp|gif)(?:\?.*)?$', re.IGNORECASE)
 
-# Only check Discord CDN domains
 SUSPICIOUS_DOMAINS = ["cdn.discordapp.com", "media.discordapp.net"]
 
 intents = discord.Intents.default()
@@ -70,7 +68,6 @@ async def log_action(guild: discord.Guild, message: discord.Message, reason: str
                 if message.content:
                     embed.add_field(name="Message Content", value=message.content[:1024], inline=False)
 
-                # Add embed previews (external URLs)
                 if message.embeds:
                     emb_texts = []
                     for i, emb in enumerate(message.embeds, start=1):
@@ -87,7 +84,6 @@ async def log_action(guild: discord.Guild, message: discord.Message, reason: str
 
                 embed.set_footer(text=f"Message ID: {message.id} | Time: {ts}")
 
-                # Send embed + files (attachments re-uploaded)
                 await ch.send(embed=embed, files=files or None)
 
             except Exception as e:
@@ -106,7 +102,6 @@ async def on_message(message: discord.Message):
     suspicious = False
     reason = None
 
-    # Check forwarded content if available
     snapshots = getattr(message, "message_snapshots", [])
     for snap in snapshots:
         snap_content = getattr(snap, "content", "").lower()
@@ -118,7 +113,6 @@ async def on_message(message: discord.Message):
         if suspicious:
             break
 
-    # --- Check attachments ---
     if message.attachments:
         for att in message.attachments:
             filename = (att.filename or "").lower()
@@ -127,7 +121,6 @@ async def on_message(message: discord.Message):
                 suspicious = True
                 reason = f"Suspicious attachment `{filename}`"
 
-    # --- Check embeds (links that render images) ---
     if message.embeds:
         for emb in message.embeds:
             if emb.url:
@@ -137,7 +130,6 @@ async def on_message(message: discord.Message):
                     suspicious = True
                     reason = f"Suspicious embed link `{url}`"
 
-    # --- Check raw message content for suspicious links ---
     content = message.content.lower()
     for domain in SUSPICIOUS_DOMAINS:
         if domain in content:
@@ -145,7 +137,6 @@ async def on_message(message: discord.Message):
                 suspicious = True
                 reason = "Suspicious link in message content"
 
-    # --- Take action ---
     if suspicious:
         files = []
         if message.attachments:
@@ -157,10 +148,8 @@ async def on_message(message: discord.Message):
                     print(f"[ERROR] Could not fetch attachment {att.filename}: {e}")
 
         try:
-            # Log before deletion
             await log_action(message.guild, message, reason, files=files)
 
-            # Delete the original message
             await message.delete()
 
             print(f"[ACTION] Deleted message from {message.author} - {reason}")
@@ -183,7 +172,6 @@ async def on_message(message: discord.Message):
                     print(f"[ERROR] Failed to ban: {e}")
         return
 
-    # Debug log
     print(f"[DEBUG] Message from {message.author}: {message.content[:50]}")
 
     await bot.process_commands(message)
