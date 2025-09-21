@@ -1,5 +1,6 @@
 import os, re
 import discord
+import datetime
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -36,16 +37,62 @@ def is_whitelisted(member: discord.Member) -> bool:
             return True
     return False
 
-async def log_action(guild: discord.Guild, text: str):
-    """Send log message to console and log channel if set."""
-    print(f"[LOG] {text}")
+# async def log_action(guild: discord.Guild, text: str):
+#     """Send log message to console and log channel if set."""
+#     print(f"[LOG] {text}")
+#     if LOG_CHANNEL_ID:
+#         ch = guild.get_channel(LOG_CHANNEL_ID)
+#         if ch:
+#             try:
+#                 await ch.send(text)
+#             except Exception as e:
+#                 print(f"[WARN] Could not send log to channel: {e}")
+
+
+async def log_action(guild: discord.Guild, message: discord.Message, reason: str, files=None):
+    ts = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    print(f"[LOG {ts}] {reason} | Author={message.author} | Channel=#{message.channel} | Content={message.content}")
+
     if LOG_CHANNEL_ID:
         ch = guild.get_channel(LOG_CHANNEL_ID)
         if ch:
             try:
-                await ch.send(text)
+                embed = discord.Embed(
+                    title="Suspicious Message Deleted",
+                    description=f"**Reason:** {reason}",
+                    color=discord.Color.red(),
+                    timestamp=datetime.datetime.now(datetime.UTC)
+                )
+                embed.add_field(name="User", value=f"{message.author} ({message.author.id})", inline=False)
+                embed.add_field(name="Channel", value=message.channel.mention, inline=False)
+
+                if message.content:
+                    embed.add_field(name="Message Content", value=message.content[:1024], inline=False)
+
+                # Add embed previews (external URLs)
+                if message.embeds:
+                    emb_texts = []
+                    for i, emb in enumerate(message.embeds, start=1):
+                        parts = []
+                        if emb.title:
+                            parts.append(f"**Title:** {emb.title}")
+                        if emb.description:
+                            parts.append(f"**Desc:** {emb.description[:200]}")
+                        if emb.url:
+                            parts.append(f"**URL:** {emb.url}")
+                        emb_texts.append("\n".join(parts))
+                    if emb_texts:
+                        embed.add_field(name="Embeds", value="\n\n".join(emb_texts)[:1024], inline=False)
+
+                embed.set_footer(text=f"Message ID: {message.id} | Time: {ts}")
+
+                # Send embed + files (attachments re-uploaded)
+                await ch.send(embed=embed, files=files or None)
+
             except Exception as e:
                 print(f"[WARN] Could not send log to channel: {e}")
+
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -100,9 +147,23 @@ async def on_message(message: discord.Message):
 
     # --- Take action ---
     if suspicious:
+        files = []
+        if message.attachments:
+            for att in message.attachments:
+                try:
+                    file = await att.to_file()
+                    files.append(file)
+                except Exception as e:
+                    print(f"[ERROR] Could not fetch attachment {att.filename}: {e}")
+
         try:
+            # Log before deletion
+            await log_action(message.guild, message, reason, files=files)
+
+            # Delete the original message
             await message.delete()
-            await log_action(message.guild, f"Deleted message from {message.author.mention} in {message.channel.mention} - {reason}")
+
+            print(f"[ACTION] Deleted message from {message.author} - {reason}")
         except discord.Forbidden:
             print("[ERROR] Bot lacks Manage Messages permission.")
             return
