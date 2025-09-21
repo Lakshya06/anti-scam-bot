@@ -48,7 +48,7 @@ def is_whitelisted(member: discord.Member) -> bool:
 
 
 async def log_action(guild: discord.Guild, message: discord.Message, reason: str, files=None):
-    ts = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     print(f"[LOG {ts}] {reason} | Author={message.author} | Channel=#{message.channel} | Content={message.content}")
 
@@ -60,7 +60,7 @@ async def log_action(guild: discord.Guild, message: discord.Message, reason: str
                     title="Suspicious Message Deleted",
                     description=f"**Reason:** {reason}",
                     color=discord.Color.red(),
-                    timestamp=datetime.datetime.now(datetime.UTC)
+                    timestamp=datetime.datetime.now(datetime.timezone.utc)
                 )
                 embed.add_field(name="User", value=f"{message.author} ({message.author.id})", inline=False)
                 embed.add_field(name="Channel", value=message.channel.mention, inline=False)
